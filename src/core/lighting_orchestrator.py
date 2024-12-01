@@ -1,5 +1,7 @@
 import time
 import threading
+
+from ..endpoints.smartthings_endpoint import SmartThingsEndpoint
 from ..utils.config_loader import ConfigLoader
 from .spotify_handler import SpotifyHandler
 from .color_processor import ColorProcessor
@@ -13,6 +15,7 @@ class LightingOrchestrator:
         self.endpoints = self._initialize_endpoints() if not test_mode else []
         self.running = False
         self._current_track = None
+        self._last_applied_color = None  #
 
     def _initialize_endpoints(self):
         """
@@ -60,11 +63,10 @@ class LightingOrchestrator:
 
             # Select the best displayable color
             displayable_color = self._select_displayable_color(colors)
+            converted_color = SmartThingsEndpoint._rgb_to_hue(displayable_color)
 
-            # Debug the selected color
             print(f"Now playing: {track_info['name']} by {track_info['artist']}")
-            print("Selected Displayable Color:")
-            self._print_color(displayable_color)
+            print(f"Selected RGB: {displayable_color}, Converted to HSL: {converted_color}")
 
             # Apply the selected color
             self._apply_color(displayable_color)
@@ -83,7 +85,7 @@ class LightingOrchestrator:
 
     def _apply_color(self, color):
         """
-        Apply the given color to all connected endpoints.
+        Apply the given color to all connected endpoints only if it has changed.
 
         Args:
             color (tuple): RGB color values (0-255 range).
@@ -92,9 +94,21 @@ class LightingOrchestrator:
             print("No color to apply.")
             return
 
+        if hasattr(self, "_last_applied_color") and color == self._last_applied_color:
+            # Suppress logs for unchanged colors
+            print(f"Color unchanged: {color}. Skipping update.")
+            return
+
+        self._last_applied_color = color  # Update the last applied color
+
+        # **Add this line to print the color preview**
+        self._print_color(color)
+
         for endpoint in self.endpoints:
             try:
+                # Call set_color with the RGB tuple
                 endpoint.set_color(color)
+
             except Exception as e:
                 print(f"Error applying color to endpoint: {e}")
 
@@ -135,31 +149,36 @@ class LightingOrchestrator:
         last_track_check = None
         retries = 0
         max_retries = 3
+        no_track_logged = False  # Flag to avoid repeated "No track detected" logs
 
         while self.running:
             try:
-                # Fetch the current track
                 current_track = self.spotify_handler.get_current_track()
 
-                # If the track has changed, update and sync lighting
                 if current_track and current_track != self._current_track:
                     self._current_track = current_track
                     last_track_check = time.time()
-                    retries = 0  # Reset retries on successful fetch
+                    retries = 0
+                    no_track_logged = False  # Reset the flag
                     print(f"New track detected: {current_track['name']} by {current_track['artist']}")
                     self._sync_lighting(current_track)
 
-                # If no track is returned, retry a few times
-                elif not current_track and time.time() - (last_track_check or 0) > 10:  # Retry after 10 seconds
+                elif not current_track and time.time() - (last_track_check or 0) > 10:
                     if retries < max_retries:
                         retries += 1
-                        print(f"No track detected. Retrying track fetch... Attempt {retries}/{max_retries}")
+                        if not no_track_logged:  # Log once
+                            print(f"No track detected. Retrying track fetch... Attempt {retries}/{max_retries}")
+                            no_track_logged = True
                         continue
-                    print("No track detected consistently. Setting default color.")
-                    self._sync_lighting(None)
-                    retries = 0  # Reset retries after applying default color
 
-                time.sleep(self.config.config.get('spotify', {}).get('polling_interval', 5))
+                    if not no_track_logged:  # Log only if not already logged
+                        print("No track detected consistently. Setting default color.")
+                        no_track_logged = True
+
+                    self._sync_lighting(None)
+                    retries = 0
+
+                time.sleep(self.config.config.get("spotify", {}).get("polling_interval", 5))
 
             except Exception as e:
                 print(f"Polling loop error: {e}")

@@ -21,3 +21,4 @@ if __name__ == "__main__":
     # Replace 'your-device-id' with the actual device ID
     endpoint = SmartThingsEndpoint({'device_id': 'f13c8e3d-0965-49e7-80aa-ae0f5cdea316'})
     endpoint.test_color_mapping(test_colors)
+

@@ -48,55 +48,51 @@ class SmartThingsEndpoint(BaseEndpoint):
             print(f"SmartThings connection error: {e}")
             return False
 
-    def set_color(self, color, intensity=1.0):
+    def set_color(self, rgb):
         """
-        Set device color and intensity.
+        Set device color based on RGB values.
 
         Args:
-            color (tuple): RGB color values (0-1 range).
-            intensity (float): Light intensity (0-1).
+            rgb (tuple): RGB color values (0-255 range).
         """
         if not self.access_token:
             print("SmartThings token is not set. Skipping color update.")
             return False
 
         try:
-            # Scale RGB to 0-255 range correctly
-            rgb_color = tuple(int(c * 255) for c in color)
+            hue_data = self._rgb_to_hue(rgb)
+            hue_degrees = hue_data["hue"]
+            saturation = hue_data["saturation"]
+            level = hue_data["level"]
 
-            headers = {
-                'Authorization': f'Bearer {self.access_token}',
-                'Content-Type': 'application/json'
-            }
+            # **Convert hue degrees to hue percentage (0-100)**
+            hue = (hue_degrees / 360) * 100
+
             payload = {
-                'commands': [
+                "commands": [
+                    {"component": "main", "capability": "switch", "command": "on"},
                     {
-                        'component': 'main',
-                        'capability': 'switch',
-                        'command': 'on'
+                        "component": "main",
+                        "capability": "colorControl",
+                        "command": "setColor",
+                        "arguments": [{"hue": hue, "saturation": saturation, "level": level}],
                     },
-                    {
-                        'component': 'main',
-                        'capability': 'colorControl',
-                        'command': 'setColor',
-                        'arguments': [{
-                            'hue': self._rgb_to_hue(rgb_color),
-                            'saturation': 100,  # Full saturation
-                            'level': int(intensity * 100)
-                        }]
-                    }
                 ]
             }
 
-            print(f"Setting color to RGB: {rgb_color}, Hue: {self._rgb_to_hue(rgb_color)}")
-            print(f"Payload Sent to SmartThings: {json.dumps(payload, indent=2)}")
-
+            print(f"Setting color to RGB: {rgb}, Hue: {hue}%, Saturation: {saturation}%, Level: {level}%")
             response = requests.post(
-                f'{self.base_url}/devices/{self.device_id}/commands',
-                headers=headers,
-                json=payload
+                f"{self.base_url}/devices/{self.device_id}/commands",
+                headers={
+                    "Authorization": f"Bearer {self.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
             )
+
+            print(f"Response: {response.status_code}, {response.json()}")
             return response.status_code == 200
+
         except Exception as e:
             print(f"SmartThings color setting error: {e}")
             return False
@@ -108,34 +104,44 @@ class SmartThingsEndpoint(BaseEndpoint):
         print("SmartThingsEndpoint disconnect called. No action required.")
         return True
 
-    def _rgb_to_hue(self, rgb):
+    @staticmethod
+    def _rgb_to_hue(rgb):
         """
-        Convert RGB to Hue value for SmartThings.
+        Convert RGB to Hue, Saturation, and Level values.
 
         Args:
             rgb (tuple): RGB color values (0-255 range).
 
         Returns:
-            int: Hue value (0-360).
+            dict: Hue (0-360), Saturation (0-100), Level (0-100).
         """
         r, g, b = [x / 255.0 for x in rgb]
-        mx = max(r, g, b)
-        mn = min(r, g, b)
-        df = mx - mn
+        cmax = max(r, g, b)
+        cmin = min(r, g, b)
+        chroma = cmax - cmin
 
-        if mx == mn:
-            return 0  # No hue for grayscale
+        # Level (Brightness)
+        level = cmax * 100
 
-        if mx == r:
-            h = (60 * ((g - b) / df) + 360) % 360
-        elif mx == g:
-            h = (60 * ((b - r) / df) + 120) % 360
+        # Saturation
+        saturation = 0 if cmax == 0 else (chroma / cmax) * 100
+
+        # Hue
+        if chroma == 0:
+            hue = 0
+        elif cmax == r:
+            hue = (60 * ((g - b) / chroma) + 360) % 360
+        elif cmax == g:
+            hue = (60 * ((b - r) / chroma) + 120) % 360
         else:
-            h = (60 * ((r - g) / df) + 240) % 360
+            hue = (60 * ((r - g) / chroma) + 240) % 360
 
-        debug_hue = round(h)
-        print(f"Converting RGB {rgb} to Hue: {debug_hue}")
-        return debug_hue
+        print(f"Converted RGB {rgb} -> Hue: {round(hue)}, Saturation: {round(saturation)}, Level: {round(level)}")
+        return {
+            "hue": round(hue),
+            "saturation": round(saturation),
+            "level": round(level),
+        }
 
     def test_color_mapping(self, test_colors):
         """
@@ -180,6 +186,7 @@ class SmartThingsEndpoint(BaseEndpoint):
                     },
                     json=payload
                 )
+                print(f"Response: {response.status_code}, {response.json()}")
 
                 if response.status_code == 200:
                     print(f"RGB {rgb_color} successfully sent to device.")
@@ -192,4 +199,79 @@ class SmartThingsEndpoint(BaseEndpoint):
             except Exception as e:
                 print(f"Error during color mapping test for RGB {rgb_color}: {e}")
 
+    def set_color_from_payload(self, payload):
+        """
+        Send a pre-crafted payload to the SmartThings device.
 
+        Args:
+            payload (dict): Pre-crafted payload to send.
+        """
+        if not self.access_token:
+            print("SmartThings token is not set. Skipping color update.")
+            return False
+
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/json'
+            }
+
+            print(f"Sending payload to SmartThings: {payload}")
+            response = requests.post(
+                f'{self.base_url}/devices/{self.device_id}/commands',
+                headers=headers,
+                json=payload
+            )
+            print(f"Response: {response.status_code}, {response.json()}")
+            return response.status_code == 200
+
+        except Exception as e:
+            print(f"SmartThings payload sending error: {e}")
+            return False
+
+    def get_device_capabilities(self):
+        """
+        Fetch capabilities of the device from SmartThings API.
+
+        Returns:
+        list: List of supported capabilities.
+        """
+        if not self.access_token:
+            raise ValueError("SmartThings token is not set.")
+
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/json'
+            }
+            url = f'{self.base_url}/devices/{self.device_id}/components/main/capabilities'
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return [cap['id'] for cap in response.json()['items']]
+        except Exception as e:
+            print(f"Error fetching capabilities: {e}")
+            return []
+
+    def get_device_state(self):
+        """
+        Query the SmartThings API for the current device state.
+
+        Returns:
+        dict: The current state of the device.
+        """
+        if not self.access_token:
+            raise ValueError("SmartThings access token is missing.")
+
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+            'Content-Type': 'application/json',
+        }
+
+        url = f"{self.base_url}/devices/{self.device_id}/components/main/status"
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            raise ValueError(f"Error querying device state: {e}")
