@@ -1,41 +1,28 @@
-import sys
-import signal
-from src.utils.config_loader import ConfigLoader  # Change this import
-from src.core.lighting_orchestrator import LightingOrchestrator  # And this one
-
-
-def signal_handler(sig, frame):
-    """
-    Handle keyboard interrupt (Ctrl+C)
-    """
-    print("\nInterrupted. Stopping SmartSync Lighting...")
-    if orchestrator:
-        orchestrator.stop()
-    sys.exit(0)
+import time
+import threading
+from src.utils.config_loader import ConfigLoader
+from src.core.lighting_orchestrator import LightingOrchestrator
 
 
 def main():
-    global orchestrator
+    # Load configuration
+    config_loader = ConfigLoader()
+
+    # Create lighting orchestrator in test mode
+    orchestrator = LightingOrchestrator(config_loader, test_mode=True)
 
     try:
-        # Load configuration
-        config_loader = ConfigLoader()
-
-        # Create lighting orchestrator
-        orchestrator = LightingOrchestrator(config_loader)
-
-        # Register signal handler
-        signal.signal(signal.SIGINT, signal_handler)
-
         # Start lighting synchronization
         orchestrator.start()
 
         # Keep main thread running
-        signal.pause()
+        while True:
+            time.sleep(1)
 
-    except Exception as e:
-        print(f"Error starting SmartSync Lighting: {e}")
-        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user.")
+    finally:
+        orchestrator.stop()
 
 
 if __name__ == "__main__":

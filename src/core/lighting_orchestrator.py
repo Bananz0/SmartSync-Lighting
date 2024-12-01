@@ -3,14 +3,14 @@ import threading
 from ..utils.config_loader import ConfigLoader
 from .spotify_handler import SpotifyHandler
 from .color_processor import ColorProcessor
-from ..endpoints.smartthings_endpoint import SmartThingsEndpoint
 
 
 class LightingOrchestrator:
-    def __init__(self, config_loader):
+    def __init__(self, config_loader, test_mode=False):
         self.config = config_loader
+        self.test_mode = test_mode
         self.spotify_handler = SpotifyHandler(config_loader)
-        self.endpoints = self._initialize_endpoints()
+        self.endpoints = self._initialize_endpoints() if not test_mode else []
         self.running = False
         self._current_track = None
 
@@ -21,12 +21,16 @@ class LightingOrchestrator:
         Returns:
         list: Configured lighting endpoints
         """
+        if self.test_mode:
+            return []
+
         endpoints = []
         endpoint_configs = self.config.get_endpoints()
 
         for endpoint_config in endpoint_configs:
             try:
                 if endpoint_config['type'] == 'smartthings':
+                    from ..endpoints.smartthings_endpoint import SmartThingsEndpoint
                     endpoint = SmartThingsEndpoint(endpoint_config)
                     if endpoint.connect():
                         endpoints.append(endpoint)
@@ -59,12 +63,18 @@ class LightingOrchestrator:
                 # Normalize color
                 normalized_color = ColorProcessor.normalize_color(color)
 
-                # Set color on all endpoints
-                for endpoint in self.endpoints:
-                    try:
-                        endpoint.set_color(normalized_color)
-                    except Exception as e:
-                        print(f"Error syncing endpoint: {e}")
+                # In test mode, just print the color
+                if self.test_mode:
+                    print(f"Test Mode - Track: {track_info['name']} by {track_info['artist']}")
+                    print(f"Extracted Color (RGB): {color}")
+                    print(f"Normalized Color: {normalized_color}\n")
+                else:
+                    # Set color on all endpoints
+                    for endpoint in self.endpoints:
+                        try:
+                            endpoint.set_color(normalized_color)
+                        except Exception as e:
+                            print(f"Error syncing endpoint: {e}")
 
         except Exception as e:
             print(f"Lighting sync error: {e}")
@@ -97,11 +107,11 @@ class LightingOrchestrator:
         """
         Start the lighting synchronization
         """
-        if not self.endpoints:
+        if not self.test_mode and not self.endpoints:
             print("No endpoints configured. Cannot start.")
             return
 
-        print("Starting SmartSync Lighting...")
+        print("Starting SmartSync Lighting" + (" - TEST MODE" if self.test_mode else "") + "...")
         self.running = True
 
         # Start polling in a separate thread
@@ -116,8 +126,9 @@ class LightingOrchestrator:
         self.running = False
 
         # Close all endpoints
-        for endpoint in self.endpoints:
-            endpoint.disconnect()
+        if not self.test_mode:
+            for endpoint in self.endpoints:
+                endpoint.disconnect()
 
         # Wait for polling thread to finish
         if hasattr(self, 'poll_thread'):
