@@ -57,22 +57,22 @@ class LightingOrchestrator:
             album_art = self.spotify_handler.download_album_art(track_info['album_art'])
 
             if album_art:
-                # Extract dominant color
-                color = ColorProcessor.extract_dominant_color(album_art)
+                # Extract multiple dominant colors
+                colors = ColorProcessor.extract_dominant_colors(album_art, num_colors=3)
 
-                # Normalize color
-                normalized_color = ColorProcessor.normalize_color(color)
+                # Normalize colors
+                normalized_colors = [ColorProcessor.normalize_color(color) for color in colors]
 
-                # In test mode, just print the color
+                # In test mode, preview colors in the terminal
                 if self.test_mode:
                     print(f"Test Mode - Track: {track_info['name']} by {track_info['artist']}")
-                    print(f"Extracted Color (RGB): {color}")
-                    print(f"Normalized Color: {normalized_color}\n")
+                    ColorProcessor.preview_colors(colors)
                 else:
-                    # Set color on all endpoints
+                    # Sync the primary color to all endpoints
                     for endpoint in self.endpoints:
                         try:
-                            endpoint.set_color(normalized_color)
+                            # Use the most dominant color for synchronization
+                            endpoint.set_color(normalized_colors[0])
                         except Exception as e:
                             print(f"Error syncing endpoint: {e}")
 
