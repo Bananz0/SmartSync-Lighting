@@ -128,22 +128,28 @@ class LightingOrchestrator:
         Select the most displayable color from the extracted colors.
 
         Args:
-        colors (dict): Extracted center and global colors.
+            colors (dict): Extracted center and global colors.
 
         Returns:
-        tuple: The selected RGB color.
+            tuple: The selected RGB color.
         """
         center_colors = colors.get('center_colors', [])
         global_colors = colors.get('global_colors', [])
         all_colors = center_colors + global_colors
 
-        for color in all_colors:
-            normalized_color = ColorProcessor.normalize_color(color)
-            if ColorProcessor.is_color_displayable(normalized_color):
+        # Remove duplicate colors
+        all_colors = [tuple(color) for color in {tuple(c) for c in all_colors}]
+
+        # **Filter out dark colors**
+        filtered_colors = [color for color in all_colors if not ColorProcessor.is_color_too_dark(color)]
+
+        # **Attempt to select a displayable color**
+        for color in filtered_colors:
+            if ColorProcessor.is_color_displayable(color):
                 return color
 
-        # Fallback: Return the first available color if none are displayable.
-        return all_colors[0] if all_colors else (255, 255, 255)  # Default color fallback
+        # Fallback: Return a default color if none are suitable
+        return (255, 255, 255)  # Default to white
 
     def _polling_loop(self):
         last_track_check = None

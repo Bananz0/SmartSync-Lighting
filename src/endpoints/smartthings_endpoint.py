@@ -68,6 +68,9 @@ class SmartThingsEndpoint(BaseEndpoint):
             # **Convert hue degrees to hue percentage (0-100)**
             hue = (hue_degrees / 360) * 100
 
+            # **Ensure level is an integer**
+            level = int(round(level))
+
             payload = {
                 "commands": [
                     {"component": "main", "capability": "switch", "command": "on"},
@@ -136,11 +139,12 @@ class SmartThingsEndpoint(BaseEndpoint):
         else:
             hue = (60 * ((r - g) / chroma) + 240) % 360
 
-        print(f"Converted RGB {rgb} -> Hue: {round(hue)}, Saturation: {round(saturation)}, Level: {round(level)}")
+        # **Do not round here to maintain precision**
+        print(f"Converted RGB {rgb} -> Hue: {hue}, Saturation: {saturation}, Level: {level}")
         return {
-            "hue": round(hue),
-            "saturation": round(saturation),
-            "level": round(level),
+            "hue": hue,
+            "saturation": saturation,
+            "level": level,
         }
 
     def test_color_mapping(self, test_colors):

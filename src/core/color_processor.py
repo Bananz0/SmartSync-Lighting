@@ -12,12 +12,12 @@ class ColorProcessor:
         Extract dominant colors, optionally focusing on the center region.
 
         Args:
-        image_data (bytes): Raw image data
-        num_colors (int): Number of dominant colors to extract
-        focus_center (bool): If true, prioritize colors from the center region
+            image_data (bytes): Raw image data
+            num_colors (int): Number of dominant colors to extract
+            focus_center (bool): If true, prioritize colors from the center region
 
         Returns:
-        dict: Contains 'center_colors' and 'global_colors' lists
+            dict: Contains 'center_colors' and 'global_colors' lists
         """
         try:
             if focus_center:
@@ -31,7 +31,7 @@ class ColorProcessor:
                 }
         except ImportError:
             print("OpenCV not available; using fallback.")
-            return [(255, 255, 255)] * num_colors  # Default to white
+            return {'global_colors': [(255, 255, 255)] * num_colors}  # Default to white
 
     @staticmethod
     def _extract_colors_opencv(image_data, num_colors, focus_center=False):
@@ -52,7 +52,7 @@ class ColorProcessor:
         import io
 
         # Convert bytes to PIL Image
-        image = Image.open(io.BytesIO(image_data))
+        image = Image.open(io.BytesIO(image_data)).convert('RGB')
         image = image.resize((100, 100))  # Resize for faster processing
 
         if focus_center:
@@ -66,7 +66,7 @@ class ColorProcessor:
 
         # Convert image to numpy array
         np_image = np.array(image)
-        pixels = np_image.reshape((-1, 3)) if np_image.ndim == 3 else np_image.reshape((-1, 1))
+        pixels = np_image.reshape((-1, 3))
         pixels = np.float32(pixels)
 
         # Ensure the array has the correct dimensions
@@ -77,7 +77,7 @@ class ColorProcessor:
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
         flags = cv2.KMEANS_RANDOM_CENTERS
 
-        _, labels, centers = cv2.kmeans(pixels, num_colors, None, criteria, 10, flags)
+        _, labels, centers = cv2.kmeans(pixels, num_colors * 2, None, criteria, 10, flags)
 
         # Count points in each cluster
         _, counts = np.unique(labels, return_counts=True)
@@ -86,7 +86,28 @@ class ColorProcessor:
         sorted_indices = np.argsort(-counts)
         sorted_colors = [tuple(map(int, centers[i])) for i in sorted_indices]
 
-        return sorted_colors[:num_colors]
+        # Filter out dark colors
+        filtered_colors = [color for color in sorted_colors if not ColorProcessor.is_color_too_dark(color)]
+
+        # If not enough colors, adjust num_colors
+        if len(filtered_colors) < num_colors:
+            num_colors = len(filtered_colors)
+
+        return filtered_colors[:num_colors]
+
+    @staticmethod
+    def is_color_too_dark(color, threshold=30):
+        """
+        Determine if a color is too dark (e.g., black).
+
+        Args:
+            color (tuple): RGB color.
+            threshold (int): Maximum average intensity below which the color is considered too dark.
+
+        Returns:
+            bool: True if the color is too dark, False otherwise.
+        """
+        return sum(color) / 3 < threshold
 
     @staticmethod
     def normalize_color(color):
@@ -110,13 +131,13 @@ class ColorProcessor:
         Check if the color can be displayed on an RGB strip.
 
         Args:
-        color (tuple): RGB color values.
+            color (tuple): RGB color values (0-255 range).
 
         Returns:
-        bool: True if the color is displayable, False otherwise.
+            bool: True if the color is displayable, False otherwise.
         """
-        # Example criteria: Colors must have intensity values within 10-245 (to avoid extreme colors)
-        min_intensity, max_intensity = 10, 245
+        # Exclude colors that are too dark or too light
+        min_intensity, max_intensity = 20, 235
         return all(min_intensity <= c <= max_intensity for c in color)
 
     @staticmethod
@@ -125,7 +146,7 @@ class ColorProcessor:
         Print a preview of colors in the terminal using ANSI escape sequences.
 
         Args:
-        colors_dict (dict): Dictionary with 'center_colors' and/or 'global_colors' keys
+            colors_dict (dict): Dictionary with 'center_colors' and/or 'global_colors' keys
         """
         if 'center_colors' in colors_dict:
             print("Center-Focused Colors:")
