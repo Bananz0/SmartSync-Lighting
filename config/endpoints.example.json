@@ -1,0 +1,7 @@
+[
+    {
+        "type": "smartthings",
+        "device_id": "your-device-id",
+        "name": "Living Room Light"
+    }
+]

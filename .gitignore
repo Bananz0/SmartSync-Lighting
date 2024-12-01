@@ -1,0 +1,23 @@
+# Virtual Environment
+venv/
+*.venv
+.env
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuration files with sensitive info
+config/*.json
+!config/endpoints.example.json
+
+# Logs
+*.log
+
+# IDE files
+.vscode/
+.idea/
+
+# Misc
+.DS_Store

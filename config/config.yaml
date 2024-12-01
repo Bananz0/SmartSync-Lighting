@@ -1,0 +1,10 @@
+application:
+  name: SmartSync Lighting
+  version: 0.1.0
+
+spotify:
+  polling_interval: 5  # seconds
+
+lighting:
+  default_intensity: 0.8
+  color_extraction_method: "average"
