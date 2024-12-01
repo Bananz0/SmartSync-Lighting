@@ -15,9 +15,7 @@ class TestSmartThingsEndpoint(unittest.TestCase):
         self.assertTrue(endpoint.connect())
 
     @patch("src.endpoints.smartthings_endpoint.requests.get")
-    @patch.dict(os.environ, {"SMARTTHINGS_ACCESS_TOKEN": "mock-access-token"})
-    def test_connect_failure(self, mock_get):
-        mock_get.return_value.status_code = 404
+    def test_connect_no_token(self, mock_get):
         endpoint = SmartThingsEndpoint({
             'device_id': 'test-device-id'
         })
@@ -33,9 +31,7 @@ class TestSmartThingsEndpoint(unittest.TestCase):
         self.assertTrue(endpoint.set_color((0.5, 0.5, 0.5)))
 
     @patch("src.endpoints.smartthings_endpoint.requests.post")
-    @patch.dict(os.environ, {"SMARTTHINGS_ACCESS_TOKEN": "mock-access-token"})
-    def test_set_color_failure(self, mock_post):
-        mock_post.return_value.status_code = 500
+    def test_set_color_no_token(self, mock_post):
         endpoint = SmartThingsEndpoint({
             'device_id': 'test-device-id'
         })

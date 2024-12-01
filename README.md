@@ -20,7 +20,11 @@ SmartSync Lighting is an innovative project that synchronizes your smart home li
 - Spotify Developer Account
 - Smart Home Platform Credentials
 
-## Installation
+## Setup
+For detailed setup instructions, see [SETUP.md](SETUP.md).
+
+## Setup
+For detailed setup instructions, see [SETUP.md](SETUP.md).
 
 ### Clone the Repository
 
