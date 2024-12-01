@@ -7,31 +7,38 @@ class ColorProcessor:
     DEBUG = False  # Enable or disable debug logs
 
     @staticmethod
-    def extract_dominant_colors(image_data, num_colors=3, focus_center=False):
+    def extract_dominant_colors(image_data, num_colors=3, focus_percentage=50):
         """
-        Extract dominant colors, optionally focusing on the center region.
+        Extract dominant colors, blending center and global colors based on focus percentage.
 
         Args:
-            image_data (bytes): Raw image data
-            num_colors (int): Number of dominant colors to extract
-            focus_center (bool): If true, prioritize colors from the center region
+            image_data (bytes): Raw image data.
+            num_colors (int): Number of dominant colors to extract.
+            focus_percentage (int): Percentage (0-100) of importance to center-focused colors.
 
         Returns:
-            dict: Contains 'center_colors' and 'global_colors' lists
+            dict: Contains 'blended_colors' list with dynamically weighted colors.
         """
         try:
-            if focus_center:
-                return {
-                    'center_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=True),
-                    'global_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=False)
-                }
-            else:
-                return {
-                    'global_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors)
-                }
+            # Extract center and global colors separately
+            center_colors = ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=True)
+            global_colors = ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=False)
+
+            # Calculate weights for blending
+            center_weight = focus_percentage / 100
+            global_weight = 1 - center_weight
+
+            # Blend the colors dynamically based on weights
+            blended_colors = ColorProcessor._blend_colors(center_colors, global_colors, center_weight, global_weight)
+
+            return {
+                'center_colors': center_colors,
+                'global_colors': global_colors,
+                'blended_colors': blended_colors
+            }
         except ImportError:
             print("OpenCV not available; using fallback.")
-            return {'global_colors': [(255, 255, 255)] * num_colors}  # Default to white
+            return {'blended_colors': [(255, 255, 255)] * num_colors}  # Default to white
 
     @staticmethod
     def _extract_colors_opencv(image_data, num_colors, focus_center=False):
@@ -162,3 +169,33 @@ class ColorProcessor:
                 r, g, b = color
                 ansi_color = f"\033[48;2;{r};{g};{b}m   \033[0m"
                 print(f"{ansi_color} RGB: {color}")
+
+    @staticmethod
+    def _blend_colors(center_colors, global_colors, center_weight, global_weight):
+        """
+        Blend center and global colors based on specified weights.
+
+        Args:
+            center_colors (list): List of center-focused RGB colors.
+            global_colors (list): List of globally extracted RGB colors.
+            center_weight (float): Weight (0-1) for center colors.
+            global_weight (float): Weight (0-1) for global colors.
+
+        Returns:
+            list: Blended list of RGB colors.
+        """
+        blended_colors = []
+
+        # Adjust weights to determine number of colors from each list
+        num_center_colors = round(center_weight * len(center_colors))
+        num_global_colors = round(global_weight * len(global_colors))
+
+        # Take weighted samples
+        blended_colors.extend(center_colors[:num_center_colors])
+        blended_colors.extend(global_colors[:num_global_colors])
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_colors = [c for c in blended_colors if not (c in seen or seen.add(c))]
+
+        return unique_colors

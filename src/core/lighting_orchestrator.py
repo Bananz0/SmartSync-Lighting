@@ -59,7 +59,8 @@ class LightingOrchestrator:
         try:
             # Download album art and extract colors
             album_art = self.spotify_handler.download_album_art(track_info['album_art'])
-            colors = ColorProcessor.extract_dominant_colors(album_art, num_colors=3, focus_center=True)
+            # Use focus_percentage instead of focus_center
+            colors = ColorProcessor.extract_dominant_colors(album_art, num_colors=3, focus_percentage=50)
 
             # Select the best displayable color
             displayable_color = self._select_displayable_color(colors)
