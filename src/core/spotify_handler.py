@@ -16,20 +16,24 @@ class SpotifyHandler:
 
     def get_current_track(self):
         """
-        Retrieve currently playing track information
+        Retrieve currently playing track information.
 
         Returns:
-        dict: Track information including name, artist, album art URL
+            dict: Track information including name, artist, album art URL.
         """
         try:
             current_track = self.sp.current_user_playing_track()
-            if current_track and current_track['is_playing']:
-                track = current_track['item']
-                return {
-                    'name': track['name'],
-                    'artist': track['artists'][0]['name'],
-                    'album_art': track['album']['images'][0]['url'] if track['album']['images'] else None
-                }
+
+            if current_track and current_track.get('is_playing'):
+                track = current_track.get('item')
+                if track:
+                    track_info = {
+                        'name': track.get('name', 'Unknown'),
+                        'artist': track['artists'][0]['name'] if track['artists'] else 'Unknown',
+                        'album_art': track['album']['images'][0]['url'] if track['album']['images'] else None
+                    }
+                    return track_info
+
             return None
         except Exception as e:
             print(f"Error fetching current track: {e}")

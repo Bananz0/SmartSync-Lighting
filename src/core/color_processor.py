@@ -4,6 +4,8 @@ import io
 
 
 class ColorProcessor:
+    DEBUG = False  # Enable or disable debug logs
+
     @staticmethod
     def extract_dominant_colors(image_data, num_colors=3, focus_center=False):
         """
@@ -37,14 +39,17 @@ class ColorProcessor:
         Extract dominant colors using OpenCV, optionally focusing on the center region.
 
         Args:
-        image_data (bytes): Raw image data
-        num_colors (int): Number of dominant colors to extract
-        focus_center (bool): If true, extract from center region only
+            image_data (bytes): Raw image data.
+            num_colors (int): Number of dominant colors to extract.
+            focus_center (bool): If true, extract from center region only.
 
         Returns:
-        list: List of RGB color tuples
+            list: List of RGB color tuples.
         """
         import cv2
+        import numpy as np
+        from PIL import Image
+        import io
 
         # Convert bytes to PIL Image
         image = Image.open(io.BytesIO(image_data))
@@ -59,10 +64,16 @@ class ColorProcessor:
             bottom = height * 0.75
             image = image.crop((left, top, right, bottom))
 
+        # Convert image to numpy array
         np_image = np.array(image)
-        pixels = np_image.reshape((-1, 3))
+        pixels = np_image.reshape((-1, 3)) if np_image.ndim == 3 else np_image.reshape((-1, 1))
         pixels = np.float32(pixels)
 
+        # Ensure the array has the correct dimensions
+        if len(pixels) == 0 or pixels.shape[1] != 3:
+            raise ValueError("Unexpected array shape during color extraction.")
+
+        # Perform k-means clustering
         criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.2)
         flags = cv2.KMEANS_RANDOM_CENTERS
 
@@ -78,18 +89,20 @@ class ColorProcessor:
         return sorted_colors[:num_colors]
 
     @staticmethod
-    def normalize_color(color, max_intensity=255):
+    def normalize_color(color):
         """
-        Normalize color to a 0-1 range.
+        Normalize RGB color from 0-255 range to 0-1 range.
 
         Args:
-        color (tuple): RGB color values
-        max_intensity (int): Maximum color intensity
+            color (tuple): RGB color values (0-255 range).
 
         Returns:
-        tuple: Normalized RGB color values
+            tuple: Normalized RGB color (0-1 range).
         """
-        return tuple(c / max_intensity for c in color)
+        normalized = tuple(c / 255.0 for c in color)
+        if ColorProcessor.DEBUG:
+            print(f"Normalizing color {color} to {normalized}")
+        return normalized
 
     @staticmethod
     def is_color_displayable(color):
