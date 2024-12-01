@@ -5,33 +5,41 @@ import io
 
 class ColorProcessor:
     @staticmethod
-    def extract_dominant_colors(image_data, num_colors=3):
+    def extract_dominant_colors(image_data, num_colors=3, focus_center=False):
         """
-        Extract multiple dominant colors using k-means clustering.
+        Extract dominant colors, optionally focusing on the center region.
 
         Args:
         image_data (bytes): Raw image data
         num_colors (int): Number of dominant colors to extract
+        focus_center (bool): If true, prioritize colors from the center region
 
         Returns:
-        list: List of RGB color tuples, sorted by dominance
+        dict: Contains 'center_colors' and 'global_colors' lists
         """
         try:
-            return ColorProcessor._extract_colors_opencv(image_data, num_colors)
+            if focus_center:
+                return {
+                    'center_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=True),
+                    'global_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors, focus_center=False)
+                }
+            else:
+                return {
+                    'global_colors': ColorProcessor._extract_colors_opencv(image_data, num_colors)
+                }
         except ImportError:
-            return ColorProcessor._extract_colors_pil(image_data, num_colors)
-        except Exception as e:
-            print(f"Color extraction error: {e}")
+            print("OpenCV not available; using fallback.")
             return [(255, 255, 255)] * num_colors  # Default to white
 
     @staticmethod
-    def _extract_colors_opencv(image_data, num_colors):
+    def _extract_colors_opencv(image_data, num_colors, focus_center=False):
         """
-        Extract dominant colors using OpenCV (k-means clustering).
+        Extract dominant colors using OpenCV, optionally focusing on the center region.
 
         Args:
         image_data (bytes): Raw image data
         num_colors (int): Number of dominant colors to extract
+        focus_center (bool): If true, extract from center region only
 
         Returns:
         list: List of RGB color tuples
@@ -41,6 +49,16 @@ class ColorProcessor:
         # Convert bytes to PIL Image
         image = Image.open(io.BytesIO(image_data))
         image = image.resize((100, 100))  # Resize for faster processing
+
+        if focus_center:
+            # Crop to center 50% of the image
+            width, height = image.size
+            left = width * 0.25
+            top = height * 0.25
+            right = width * 0.75
+            bottom = height * 0.75
+            image = image.crop((left, top, right, bottom))
+
         np_image = np.array(image)
         pixels = np_image.reshape((-1, 3))
         pixels = np.float32(pixels)
@@ -60,29 +78,6 @@ class ColorProcessor:
         return sorted_colors[:num_colors]
 
     @staticmethod
-    def _extract_colors_pil(image_data, num_colors):
-        """
-        Extract dominant colors using PIL (average color method).
-
-        Args:
-        image_data (bytes): Raw image data
-        num_colors (int): Number of dominant colors to extract
-
-        Returns:
-        list: List of RGB color tuples
-        """
-        image = Image.open(io.BytesIO(image_data))
-        image = image.resize((100, 100)).convert("RGB")
-        np_image = np.array(image).reshape((-1, 3))
-
-        # Use numpy to find unique colors and sort them by frequency
-        unique, counts = np.unique(np_image, axis=0, return_counts=True)
-        sorted_indices = np.argsort(-counts)
-        sorted_colors = [tuple(unique[i]) for i in sorted_indices]
-
-        return sorted_colors[:num_colors]
-
-    @staticmethod
     def normalize_color(color, max_intensity=255):
         """
         Normalize color to a 0-1 range.
@@ -97,15 +92,39 @@ class ColorProcessor:
         return tuple(c / max_intensity for c in color)
 
     @staticmethod
-    def preview_colors(colors):
+    def is_color_displayable(color):
+        """
+        Check if the color can be displayed on an RGB strip.
+
+        Args:
+        color (tuple): RGB color values.
+
+        Returns:
+        bool: True if the color is displayable, False otherwise.
+        """
+        # Example criteria: Colors must have intensity values within 10-245 (to avoid extreme colors)
+        min_intensity, max_intensity = 10, 245
+        return all(min_intensity <= c <= max_intensity for c in color)
+
+    @staticmethod
+    def preview_colors(colors_dict):
         """
         Print a preview of colors in the terminal using ANSI escape sequences.
 
         Args:
-        colors (list): List of RGB color tuples
+        colors_dict (dict): Dictionary with 'center_colors' and/or 'global_colors' keys
         """
-        print("Color Previews:")
-        for color in colors:
-            r, g, b = color
-            ansi_color = f"\033[48;2;{r};{g};{b}m   \033[0m"
-            print(f"{ansi_color} RGB: {color}")
+        if 'center_colors' in colors_dict:
+            print("Center-Focused Colors:")
+            for color in colors_dict['center_colors']:
+                r, g, b = color
+                ansi_color = f"\033[48;2;{r};{g};{b}m   \033[0m"
+                print(f"{ansi_color} RGB: {color}")
+            print()
+
+        if 'global_colors' in colors_dict:
+            print("Global Colors:")
+            for color in colors_dict['global_colors']:
+                r, g, b = color
+                ansi_color = f"\033[48;2;{r};{g};{b}m   \033[0m"
+                print(f"{ansi_color} RGB: {color}")

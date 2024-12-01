@@ -44,10 +44,10 @@ class LightingOrchestrator:
 
     def _sync_lighting(self, track_info):
         """
-        Synchronize lighting based on current track
+        Synchronize lighting based on current track.
 
         Args:
-        track_info (dict): Current track information
+        track_info (dict): Current track information.
         """
         if not track_info or not track_info.get('album_art'):
             return
@@ -57,22 +57,42 @@ class LightingOrchestrator:
             album_art = self.spotify_handler.download_album_art(track_info['album_art'])
 
             if album_art:
-                # Extract multiple dominant colors
-                colors = ColorProcessor.extract_dominant_colors(album_art, num_colors=3)
+                # Extract dominant colors with center focus
+                colors = ColorProcessor.extract_dominant_colors(album_art, num_colors=5, focus_center=True)
 
                 # Normalize colors
-                normalized_colors = [ColorProcessor.normalize_color(color) for color in colors]
+                center_colors = colors.get('center_colors', [])
+                global_colors = colors.get('global_colors', [])
+                normalized_center_colors = [ColorProcessor.normalize_color(color) for color in center_colors]
+                normalized_global_colors = [ColorProcessor.normalize_color(color) for color in global_colors]
 
-                # In test mode, preview colors in the terminal
+                # Find the most displayable color
+                displayable_color = None
+                for color_set in [normalized_center_colors, normalized_global_colors]:
+                    for color in color_set:
+                        if ColorProcessor.is_color_displayable(color):
+                            displayable_color = color
+                            break
+                    if displayable_color:
+                        break
+
+                # Fallback: Use the first non-dominant color if none are displayable
+                if not displayable_color:
+                    for color_set in [center_colors, global_colors]:
+                        for color in color_set:
+                            displayable_color = color
+                            break
+
+                # In test mode, display selected color
                 if self.test_mode:
                     print(f"Test Mode - Track: {track_info['name']} by {track_info['artist']}")
+                    print(f"Selected Color (RGB): {displayable_color}")
                     ColorProcessor.preview_colors(colors)
                 else:
-                    # Sync the primary color to all endpoints
+                    # Sync the selected color to endpoints
                     for endpoint in self.endpoints:
                         try:
-                            # Use the most dominant color for synchronization
-                            endpoint.set_color(normalized_colors[0])
+                            endpoint.set_color(displayable_color)
                         except Exception as e:
                             print(f"Error syncing endpoint: {e}")
 
@@ -81,7 +101,7 @@ class LightingOrchestrator:
 
     def _polling_loop(self):
         """
-        Continuous polling loop to check current track and sync lighting
+        Continuous polling loop to check current track and sync lighting.
         """
         while self.running:
             try:
