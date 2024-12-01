@@ -77,7 +77,7 @@ class LightingOrchestrator:
 
     def _apply_default_color(self):
         """
-        Apply a default color when no track is playing.
+        Apply a default color when no track is playing..
         """
         default_color = (255, 255, 255)  # Example: Warm white
         print("Applying default color:")
